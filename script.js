@@ -1,301 +1,270 @@
 /**
  * Ferienhaus Seeschwalbe 285 - JavaScript
- * Handles navigation, smooth scrolling, and animations
+ * Handles navigation, smooth scrolling, animations and UI helpers.
  */
 
-document.addEventListener('DOMContentLoaded', function() {
-    // Elements
-    const navbar = document.querySelector('.navbar');
-    const navToggle = document.querySelector('.nav-toggle');
-    const navMenu = document.querySelector('.nav-menu');
-    const navLinks = document.querySelectorAll('.nav-menu a');
+(function () {
+    'use strict';
+
+    document.addEventListener('DOMContentLoaded', function () {
+        initMobileNav();
+        initNavbarScroll();
+        initSmoothScroll();
+        initScrollAnimations();
+        initLightbox();
+        initLazyLoading();
+        initCurrentYear();
+        initScrollProgress();
+        logWelcome();
+    });
 
     // =========================================
     // Mobile Navigation Toggle
     // =========================================
-    if (navToggle && navMenu) {
-        navToggle.addEventListener('click', function() {
-            navMenu.classList.toggle('active');
-            navToggle.classList.toggle('active');
+    function initMobileNav() {
+        const navToggle = document.querySelector('.nav-toggle');
+        const navMenu = document.querySelector('.nav-menu');
+        if (!navToggle || !navMenu) return;
 
-            // Toggle body scroll when menu is open
-            document.body.style.overflow = navMenu.classList.contains('active') ? 'hidden' : '';
+        const navLinks = navMenu.querySelectorAll('a');
+
+        function setMenu(open) {
+            navMenu.classList.toggle('active', open);
+            navToggle.classList.toggle('active', open);
+            navToggle.setAttribute('aria-expanded', String(open));
+            document.body.style.overflow = open ? 'hidden' : '';
+        }
+
+        navToggle.addEventListener('click', function () {
+            setMenu(!navMenu.classList.contains('active'));
         });
 
-        // Close menu when clicking on a link
-        navLinks.forEach(link => {
-            link.addEventListener('click', function() {
-                navMenu.classList.remove('active');
-                navToggle.classList.remove('active');
-                document.body.style.overflow = '';
+        navLinks.forEach(function (link) {
+            link.addEventListener('click', function () {
+                setMenu(false);
             });
         });
 
-        // Close menu when clicking outside
-        document.addEventListener('click', function(e) {
+        // Close when clicking outside the menu
+        document.addEventListener('click', function (e) {
             if (!navMenu.contains(e.target) && !navToggle.contains(e.target)) {
-                navMenu.classList.remove('active');
-                navToggle.classList.remove('active');
-                document.body.style.overflow = '';
+                setMenu(false);
+            }
+        });
+
+        // Close on Escape
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && navMenu.classList.contains('active')) {
+                setMenu(false);
             }
         });
     }
 
     // =========================================
-    // Navbar Scroll Effect
+    // Navbar Scroll Effect (rAF-throttled)
     // =========================================
-    let lastScroll = 0;
+    function initNavbarScroll() {
+        const navbar = document.querySelector('.navbar');
+        if (!navbar) return;
 
-    window.addEventListener('scroll', function() {
-        const currentScroll = window.pageYOffset;
+        let ticking = false;
 
-        // Add/remove scrolled class
-        if (currentScroll > 50) {
-            navbar.classList.add('scrolled');
-        } else {
-            navbar.classList.remove('scrolled');
+        function update() {
+            navbar.classList.toggle('scrolled', window.pageYOffset > 50);
+            ticking = false;
         }
 
-        lastScroll = currentScroll;
-    });
+        window.addEventListener('scroll', function () {
+            if (!ticking) {
+                window.requestAnimationFrame(update);
+                ticking = true;
+            }
+        }, { passive: true });
+
+        update();
+    }
 
     // =========================================
     // Smooth Scroll for Anchor Links
     // =========================================
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-        anchor.addEventListener('click', function(e) {
-            e.preventDefault();
-            const targetId = this.getAttribute('href');
+    function initSmoothScroll() {
+        const navbar = document.querySelector('.navbar');
 
-            if (targetId === '#') return;
+        document.querySelectorAll('a[href^="#"]').forEach(function (anchor) {
+            anchor.addEventListener('click', function (e) {
+                const targetId = this.getAttribute('href');
+                if (targetId === '#') return;
 
-            const targetElement = document.querySelector(targetId);
+                const targetElement = document.querySelector(targetId);
+                if (!targetElement) return;
 
-            if (targetElement) {
-                const navHeight = navbar.offsetHeight;
-                const targetPosition = targetElement.getBoundingClientRect().top + window.pageYOffset - navHeight;
+                e.preventDefault();
+                const navHeight = navbar ? navbar.offsetHeight : 0;
+                const targetPosition =
+                    targetElement.getBoundingClientRect().top + window.pageYOffset - navHeight;
 
-                window.scrollTo({
-                    top: targetPosition,
-                    behavior: 'smooth'
-                });
-            }
+                window.scrollTo({ top: targetPosition, behavior: 'smooth' });
+            });
         });
-    });
+    }
 
     // =========================================
     // Intersection Observer for Animations
     // =========================================
-    const observerOptions = {
-        root: null,
-        rootMargin: '0px',
-        threshold: 0.1
-    };
+    function initScrollAnimations() {
+        const animateElements = document.querySelectorAll(
+            '.section-header, .highlight-card, .amenity-category, .activity-card, ' +
+            '.testimonial-card, .house-gallery, .house-info, .booking-card'
+        );
+        if (!animateElements.length) return;
 
-    const observerCallback = (entries, observer) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.classList.add('animate-in');
-                observer.unobserve(entry.target);
-            }
-        });
-    };
-
-    const observer = new IntersectionObserver(observerCallback, observerOptions);
-
-    // Observe sections and cards
-    const animateElements = document.querySelectorAll(
-        '.section-header, .highlight-card, .amenity-category, .activity-card, .testimonial-card, .house-gallery, .house-info, .booking-card'
-    );
-
-    animateElements.forEach(el => {
-        el.style.opacity = '0';
-        el.style.transform = 'translateY(30px)';
-        el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
-        observer.observe(el);
-    });
-
-    // Add the animate-in styles
-    const style = document.createElement('style');
-    style.textContent = `
-        .animate-in {
-            opacity: 1 !important;
-            transform: translateY(0) !important;
+        // Respect reduced-motion preferences
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            animateElements.forEach(function (el) { el.classList.add('animate-in'); });
+            return;
         }
-    `;
-    document.head.appendChild(style);
+
+        animateElements.forEach(function (el) { el.classList.add('will-animate'); });
+
+        if (!('IntersectionObserver' in window)) {
+            animateElements.forEach(function (el) { el.classList.add('animate-in'); });
+            return;
+        }
+
+        const observer = new IntersectionObserver(function (entries, obs) {
+            entries.forEach(function (entry) {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('animate-in');
+                    obs.unobserve(entry.target);
+                }
+            });
+        }, { root: null, rootMargin: '0px', threshold: 0.1 });
+
+        animateElements.forEach(function (el) { observer.observe(el); });
+    }
 
     // =========================================
-    // Gallery Image Lightbox (Simple)
+    // Gallery Image Lightbox
     // =========================================
-    const galleryImages = document.querySelectorAll('.gallery-grid img, .gallery-main img');
-
-    galleryImages.forEach(img => {
-        img.style.cursor = 'pointer';
-        img.addEventListener('click', function() {
-            openLightbox(this.src, this.alt);
+    function initLightbox() {
+        const galleryImages = document.querySelectorAll('.gallery-grid img, .gallery-main img');
+        galleryImages.forEach(function (img) {
+            img.addEventListener('click', function () {
+                openLightbox(this.src, this.alt);
+            });
         });
-    });
+    }
 
     function openLightbox(src, alt) {
-        // Create lightbox elements
         const lightbox = document.createElement('div');
         lightbox.className = 'lightbox';
-        lightbox.innerHTML = `
-            <div class="lightbox-overlay"></div>
-            <div class="lightbox-content">
-                <button class="lightbox-close" aria-label="Schließen">&times;</button>
-                <img src="${src.replace('w=400', 'w=1200').replace('w=800', 'w=1200')}" alt="${alt}">
-            </div>
-        `;
+        lightbox.innerHTML =
+            '<div class="lightbox-overlay"></div>' +
+            '<div class="lightbox-content">' +
+            '<button class="lightbox-close" aria-label="Schließen">&times;</button>' +
+            '<img src="" alt="">' +
+            '</div>';
 
-        // Add styles
-        const lightboxStyle = document.createElement('style');
-        lightboxStyle.textContent = `
-            .lightbox {
-                position: fixed;
-                inset: 0;
-                z-index: 10000;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                padding: 2rem;
-                animation: fadeIn 0.3s ease;
-            }
-            .lightbox-overlay {
-                position: absolute;
-                inset: 0;
-                background: rgba(0, 0, 0, 0.9);
-            }
-            .lightbox-content {
-                position: relative;
-                max-width: 90%;
-                max-height: 90%;
-            }
-            .lightbox-content img {
-                max-width: 100%;
-                max-height: 85vh;
-                border-radius: 8px;
-                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-            }
-            .lightbox-close {
-                position: absolute;
-                top: -40px;
-                right: 0;
-                background: none;
-                border: none;
-                color: white;
-                font-size: 2.5rem;
-                cursor: pointer;
-                line-height: 1;
-                transition: transform 0.2s;
-            }
-            .lightbox-close:hover {
-                transform: scale(1.1);
-            }
-            @keyframes fadeIn {
-                from { opacity: 0; }
-                to { opacity: 1; }
-            }
-        `;
-        document.head.appendChild(lightboxStyle);
+        // Set image attributes without HTML interpolation (avoids injection)
+        const imgEl = lightbox.querySelector('img');
+        imgEl.src = src;
+        imgEl.alt = alt || '';
 
-        // Add to DOM
         document.body.appendChild(lightbox);
         document.body.style.overflow = 'hidden';
 
-        // Close handlers
         function closeLightbox() {
-            lightbox.style.animation = 'fadeIn 0.3s ease reverse';
-            setTimeout(() => {
+            lightbox.classList.add('closing');
+            window.setTimeout(function () {
                 lightbox.remove();
                 document.body.style.overflow = '';
+                document.removeEventListener('keydown', escHandler);
             }, 250);
+        }
+
+        function escHandler(e) {
+            if (e.key === 'Escape') closeLightbox();
         }
 
         lightbox.querySelector('.lightbox-close').addEventListener('click', closeLightbox);
         lightbox.querySelector('.lightbox-overlay').addEventListener('click', closeLightbox);
-
-        document.addEventListener('keydown', function escHandler(e) {
-            if (e.key === 'Escape') {
-                closeLightbox();
-                document.removeEventListener('keydown', escHandler);
-            }
-        });
+        document.addEventListener('keydown', escHandler);
     }
 
     // =========================================
     // Lazy Loading Enhancement
     // =========================================
-    if ('IntersectionObserver' in window) {
-        const lazyImages = document.querySelectorAll('img[loading="lazy"]');
+    function initLazyLoading() {
+        if (!('IntersectionObserver' in window)) return;
 
-        const imageObserver = new IntersectionObserver((entries, observer) => {
-            entries.forEach(entry => {
+        const lazyImages = document.querySelectorAll('img[loading="lazy"]');
+        if (!lazyImages.length) return;
+
+        const imageObserver = new IntersectionObserver(function (entries, obs) {
+            entries.forEach(function (entry) {
                 if (entry.isIntersecting) {
-                    const img = entry.target;
-                    img.classList.add('loaded');
-                    observer.unobserve(img);
+                    entry.target.classList.add('loaded');
+                    obs.unobserve(entry.target);
                 }
             });
         });
 
-        lazyImages.forEach(img => imageObserver.observe(img));
+        lazyImages.forEach(function (img) { imageObserver.observe(img); });
     }
 
     // =========================================
     // Current Year for Footer
     // =========================================
-    const yearElements = document.querySelectorAll('.current-year');
-    yearElements.forEach(el => {
-        el.textContent = new Date().getFullYear();
-    });
-
-    // =========================================
-    // Scroll Progress Indicator (optional)
-    // =========================================
-    function createScrollProgress() {
-        const progressBar = document.createElement('div');
-        progressBar.className = 'scroll-progress';
-        progressBar.innerHTML = '<div class="scroll-progress-bar"></div>';
-
-        const progressStyle = document.createElement('style');
-        progressStyle.textContent = `
-            .scroll-progress {
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 3px;
-                background: transparent;
-                z-index: 10001;
-            }
-            .scroll-progress-bar {
-                height: 100%;
-                background: linear-gradient(90deg, #2E5A4C, #7BA3A8);
-                width: 0%;
-                transition: width 0.1s ease;
-            }
-        `;
-        document.head.appendChild(progressStyle);
-        document.body.appendChild(progressBar);
-
-        const progressBarInner = progressBar.querySelector('.scroll-progress-bar');
-
-        window.addEventListener('scroll', function() {
-            const winScroll = document.body.scrollTop || document.documentElement.scrollTop;
-            const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
-            const scrolled = (winScroll / height) * 100;
-            progressBarInner.style.width = scrolled + '%';
+    function initCurrentYear() {
+        const year = String(new Date().getFullYear());
+        document.querySelectorAll('.current-year').forEach(function (el) {
+            el.textContent = year;
         });
     }
 
-    createScrollProgress();
+    // =========================================
+    // Scroll Progress Indicator (rAF-throttled)
+    // =========================================
+    function initScrollProgress() {
+        const progressBar = document.createElement('div');
+        progressBar.className = 'scroll-progress';
+        progressBar.innerHTML = '<div class="scroll-progress-bar"></div>';
+        document.body.appendChild(progressBar);
+
+        const inner = progressBar.querySelector('.scroll-progress-bar');
+        let ticking = false;
+
+        function update() {
+            const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+            const height =
+                document.documentElement.scrollHeight - document.documentElement.clientHeight;
+            const scrolled = height > 0 ? (scrollTop / height) * 100 : 0;
+            inner.style.width = scrolled + '%';
+            ticking = false;
+        }
+
+        window.addEventListener('scroll', function () {
+            if (!ticking) {
+                window.requestAnimationFrame(update);
+                ticking = true;
+            }
+        }, { passive: true });
+
+        update();
+    }
 
     // =========================================
     // Console Welcome Message
     // =========================================
-    console.log('%c🏡 Ferienhaus Seeschwalbe 285', 'font-size: 20px; font-weight: bold; color: #2E5A4C;');
-    console.log('%cMecklenburgische Seenplatte - Mirow', 'font-size: 14px; color: #666;');
-    console.log('%cBuchen Sie unter: https://booking.allseasonparks.de', 'font-size: 12px; color: #999;');
-});
+    function logWelcome() {
+        console.log(
+            '%c🏡 Ferienhaus Seeschwalbe 285',
+            'font-size: 20px; font-weight: bold; color: #2E5A4C;'
+        );
+        console.log('%cMecklenburgische Seenplatte - Mirow', 'font-size: 14px; color: #666;');
+        console.log(
+            '%cBuchen Sie unter: https://booking.allseasonparks.de',
+            'font-size: 12px; color: #999;'
+        );
+    }
+})();
